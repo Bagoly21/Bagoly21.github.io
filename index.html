@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Persona Builder</title>
+  <style>
+    body {
+      background-color: #111;
+      color: #eee;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .main-container {
+      max-width: 700px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .button {
+      background-color: #0f0;
+      border: none;
+      color: black;
+      padding: 10px 20px;
+      font-size: 18px;
+      cursor: pointer;
+      margin-top: 20px;
+      border-radius: 5px;
+    }
+
+    .warning {
+      color: #f55;
+      font-size: 14px;
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      justify-content: center;
+    }
+
+    .warning-icon {
+      color: #f55;
+      font-weight: bold;
+      font-size: 16px;
+    }
+
+    .input-box,
+    .drop-zone {
+      margin-top: 20px;
+      text-align: center;
+      width: 100%;
+    }
+
+    .drop-zone {
+      border: 2px dashed #888;
+      padding: 40px;
+      cursor: pointer;
+      border-radius: 10px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .skin-counter {
+      font-size: 24px;
+      margin-top: 30px;
+      font-weight: bold;
+    }
+
+    #skinNameInput {
+      margin-top: 10px;
+      padding: 8px;
+      width: 300px;
+      max-width: 90%;
+      border-radius: 5px;
+      border: none;
+      font-size: 16px;
+      color: black;
+    }
+
+    .info-text {
+      font-size: 14px;
+      width: 100%;
+      margin-top: 20px;
+      text-align: center;
+      line-height: 1.2;
+      color: #ccc;
+      white-space: normal;
+      overflow-x: hidden;
+      word-wrap: break-word;
+    }
+
+    .blue-link {
+      color: #4cf;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+
+    code {
+      display: inline-block;
+      background-color: #222;
+      color: #0f0;
+      padding: 4px 6px;
+      border-radius: 4px;
+      white-space: normal;
+      word-break: break-all;
+      margin-top: 2px;
+      margin-bottom: 2px;
+    }
+
+    /* Terminal style box with green text, no background or border */
+    #fileList {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #0f0;
+      text-align: left;
+      width: 100%;
+      white-space: normal;
+      overflow-x: hidden;
+    }
+
+    #fileList div {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 3px;
+      cursor: default;
+      user-select: text;
+    }
+
+    .remove-btn {
+      color: red;
+      cursor: pointer;
+      font-weight: bold;
+      margin-left: 10px;
+      user-select: none;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="main-container">
+    <h1 class="skin-counter hidden" id="skinCounter">Skin 1</h1>
+    <input type="text" id="skinNameInput" class="hidden" placeholder="Enter the name of the skin" autocomplete="off" />
+
+    <button id="createPersonaBtn" class="button">Create Persona</button>
+
+    <div id="nameStep" class="input-box hidden">
+      <label>Enter serialize/localization name:</label><br />
+      <input type="text" id="packName" placeholder="e.g. MySkinpack"
+        style="width: 300px; max-width: 90%; padding: 8px; margin-top: 10px;" />
+      <div id="warningMsg" class="warning hidden"><span class="warning-icon">⚠</span>You can't put spaces here.</div>
+      <button class="button" onclick="nextToUpload()">Next</button>
+    </div>
+
+    <div id="uploadStep" class="hidden">
+      <div class="input-box" id="uploadInfoBox">
+        <p id="uploadText">Upload the first skin and cape you want.</p>
+        <p style="margin-top: 4px;">Please make sure you upload them in order, skin first, cape second</p>
+        <p style="font-size: 12px; margin-top: 4px;">Don't upload a cape if you don't want one for the given skin</p>
+      </div>
+      <div id="dropZone" class="drop-zone">Drag & drop files here<br>or click to select</div>
+      <input type="file" id="fileInput" multiple />
+      <div id="fileList" class="hidden"></div>
+      <button id="addSkinBtn" class="button hidden" onclick="addSkin()">Add Skin</button>
+      <button id="finishBtn" class="button hidden" onclick="finishPersona()">Finish Persona</button>
+    </div>
+
+    <div id="infoText" class="info-text hidden"></div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script>
+    let skinIndex = 1;
+    let uploadedFiles = [];
+    // This 'skins' array will now store objects formatted correctly for skins.json as per your latest request
+    let skins = [];
+    let skinNames = [];
+    let serializeName = '';
+    let zip = new JSZip();
+
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileListDiv = document.getElementById('fileList');
+    const addSkinBtn = document.getElementById('addSkinBtn');
+    const finishBtn = document.getElementById('finishBtn');
+    const skinCounter = document.getElementById('skinCounter');
+    const skinNameInput = document.getElementById('skinNameInput');
+    const infoText = document.getElementById('infoText');
+    const uploadStep = document.getElementById('uploadStep');
+    const warningMsg = document.getElementById('warningMsg');
+    const packNameInput = document.getElementById('packName');
+
+    packNameInput.addEventListener('input', () => {
+      if (packNameInput.value.includes(' ')) {
+        warningMsg.classList.remove('hidden');
+      } else {
+        warningMsg.classList.add('hidden');
+      }
+    });
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', handleFiles);
+    dropZone.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    });
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      handleFiles({ target: { files: e.dataTransfer.files } });
+    });
+
+    function handleFiles(e) {
+      const newFiles = Array.from(e.target.files).slice(0, 2);
+      if (uploadedFiles.length + newFiles.length > 2) {
+        alert("You can only upload 1 skin and 1 cape per skin entry.");
+        return;
+      }
+      uploadedFiles = uploadedFiles.concat(newFiles);
+      updateFileList();
+      addSkinBtn.classList.remove('hidden');
+      fileListDiv.classList.remove('hidden');
+    }
+
+    function updateFileList() {
+      fileListDiv.innerHTML = "";
+      if (uploadedFiles.length === 0) {
+        fileListDiv.classList.add('hidden');
+        addSkinBtn.classList.add('hidden');
+        return;
+      }
+      fileListDiv.classList.remove('hidden');
+      uploadedFiles.forEach((file, i) => {
+        const div = document.createElement('div');
+        const name = (i === 0) ? `skin${skinIndex}.png` : `cape${skinIndex}.png`;
+        div.innerHTML = `${name} (original filename: ${file.name}) <span class="remove-btn" onclick="removeFile(${i})">&times;</span>`;
+        fileListDiv.appendChild(div);
+      });
+    }
+
+    function removeFile(index) {
+      uploadedFiles.splice(index, 1);
+      updateFileList();
+      if (uploadedFiles.length === 0) {
+        addSkinBtn.classList.add('hidden');
+      }
+    }
+
+    document.getElementById('createPersonaBtn').onclick = () => {
+      document.getElementById('createPersonaBtn').classList.add('hidden');
+      document.getElementById('nameStep').classList.remove('hidden');
+    };
+
+    function nextToUpload() {
+      serializeName = packNameInput.value.trim();
+      if (!serializeName || serializeName.includes(' ')) {
+        warningMsg.classList.remove('hidden');
+        return;
+      }
+      document.getElementById('nameStep').classList.add('hidden');
+      uploadStep.classList.remove('hidden');
+      skinCounter.classList.remove('hidden');
+      skinNameInput.classList.remove('hidden');
+      skinNameInput.value = "";
+      updateSkinCounter();
+    }
+
+    function updateSkinCounter() {
+      skinCounter.innerText = `Skin ${skinIndex}`;
+      skinNameInput.placeholder = "Enter the name of the skin";
+      skinNameInput.value = "";
+      skinNameInput.focus();
+    }
+
+    function addSkin() {
+      if (uploadedFiles.length < 1) return alert('Upload at least one file');
+      const enteredSkinName = skinNameInput.value.trim();
+      if (!enteredSkinName) {
+        alert("Please enter a name for this skin!");
+        skinNameInput.focus();
+        return;
+      }
+      const skinName = enteredSkinName;
+      const currentSkinId = skinIndex; // Capture current index for filenames
+
+      const skinFileName = `skin${currentSkinId}.png`;
+      const capeFileName = uploadedFiles[1] ? `cape${currentSkinId}.png` : null;
+
+      // Prepare the skin object for skins.json exactly as requested
+      const skinObject = {
+        "localization_name": `skin.${serializeName}.skin${currentSkinId}`,
+        "geometry": "geometry.humanoid.customSlim",
+        "texture": skinFileName,
+        "type": "free"
+      };
+
+      // Ensure "cape" field is always present
+      if (capeFileName) {
+        skinObject.cape = capeFileName;
+      } else {
+        skinObject.cape = ""; // Set to empty string if no cape is uploaded
+      }
+
+      skinNames.push(skinName); // For en_US.lang
+      skins.push(skinObject); // For skins.json
+
+      // Read files for ZIP and add them
+      const readerPromises = [];
+      // Read skin
+      readerPromises.push(
+        new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = e => {
+            zip.file(skinFileName, e.target.result); // Add to zip
+            resolve();
+          };
+          reader.onerror = e => reject(e);
+          reader.readAsArrayBuffer(uploadedFiles[0]);
+        })
+      );
+
+      // Read cape if present
+      if (capeFileName) { // Only read and add cape file if it exists
+        readerPromises.push(
+          new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = e => {
+              zip.file(capeFileName, e.target.result); // Add to zip
+              resolve();
+            };
+            reader.onerror = e => reject(e);
+            reader.readAsArrayBuffer(uploadedFiles[1]);
+          })
+        );
+      }
+
+      Promise.all(readerPromises).then(() => {
+        skinIndex++;
+        uploadedFiles = [];
+        updateSkinCounter();
+        updateFileList();
+        addSkinBtn.classList.add('hidden');
+        finishBtn.classList.remove('hidden');
+        skinNameInput.value = '';
+      }).catch(err => alert('Error reading or adding files to zip: ' + err.message));
+    }
+
+    async function finishPersona() {
+      if (skins.length === 0) return alert("Add at least one skin before finishing!");
+
+      // The 'skins' array now correctly contains objects formatted for skins.json
+      zip.file("skins.json", JSON.stringify({
+        "persona_categories": [],
+        "skins": skins,
+        "serialize_name": serializeName,
+        "localization_name": serializeName
+      }, null, 2));
+
+      let langLines = skinNames.map((name, i) => `skin.${serializeName}.skin${i + 1}=${name}`).join("\n");
+      zip.folder("texts").file("en_US.lang", langLines);
+
+      try {
+        await Promise.all([
+          "manifest.json",
+          "contents.json",
+          "signatures.json"
+        ].map(file => fetch(`base_files/${file}`).then(res => res.text().then(text => zip.file(file, text)))));
+
+        const languagesText = await fetch('base_files/languages.json').then(res => res.text());
+        zip.folder("texts").file("languages.json", languagesText);
+
+        const blob = await zip.generateAsync({ type: "blob" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `${serializeName}_persona_skinpack.zip`;
+        a.textContent = "Download Persona Skinpack";
+        a.className = "button";
+        document.querySelector(".main-container").appendChild(a);
+
+        uploadStep.style.display = "none";
+        skinCounter.style.display = "none";
+        skinNameInput.style.display = "none";
+        finishBtn.classList.add('hidden');
+
+        infoText.classList.remove("hidden");
+        infoText.innerHTML = `
+Currently you can only replace the "1st birthday skinpack", but in the future there will be support for more free skinpacks.<br><br>
+You need to encrypt and place your persona in your Minecraft directory. Press the <b>Windows + R</b> button on your keyboard, then enter the following text:<br>
+<code>%LocalAppData%\\Packages\\Microsoft.MinecraftUWP_8wekyb3d8bbwe\\LocalState\\premium_cache\\skin_packs</code><br>
+<span class="blue-link" onclick="navigator.clipboard.writeText('%LocalAppData%\\\\Packages\\\\Microsoft.MinecraftUWP_8wekyb3d8bbwe\\\\LocalState\\\\premium_cache\\\\skin_packs')">copy to clipboard</span><br>
+<small style="color:#aaa;">It is recommended to delete everything inside your skin_packs folder if your skinpack doesn't work.</small><br><br>
+After you opened this file path, delete everything inside the <b>skin_packs</b> folder, then make a new folder called "<b>persona</b>" (you can name this anything) and open the zip file you get for clicking the "Download Persona Skinpack" button, and copy everything inside the zip over to the folder you just created, after that click on the address bar in your explorer (that bar on the top which shows the file location), then press <b>Ctrl + C</b> and download McEncryptor if you haven't already, unzip it and run the <b>.exe</b> file inside it. Once it opens, you should see it says "Path to pack file:", press <b>Ctrl + V</b> and hit <b>Enter</b>. Then open Minecraft (or restart it if you had it open) and you should see the 1st birthday skin pack is replaced with your skinpack.<br><br>
+You need the 1st birthday skin pack for this to work, you can get it by searching for it on the marketplace or by clicking <a href="minecraft://openStore?showStoreOffer=8e78a44d-0c1f-4ce2-826b-8bbc555012de" target="_blank" class="blue-link">here</a>.<br><br>
+To encrypt your skinpack, you need to use McEncryptor, which you can download <a href="base_files/McEncrypt.zip" download class="blue-link">here</a>.
+`;
+      } catch (err) {
+        alert("Error loading base files: " + err.message);
+      }
+    }
+  </script>
+</body>
+
+</html>
